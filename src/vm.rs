@@ -34,6 +34,12 @@ impl Frame {
     }
 }
 
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(call frame for address {})", self.return_address)
+    }
+}
+
 pub struct VM<T: Number> {
     pc: usize,
     stack: Vec<T>,
@@ -144,5 +150,20 @@ where
         self.pc = frame.return_address;
 
         Ok(())
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn visualize_callstack(&self) -> String {
+        if self.call_stack.is_empty() {
+            "(empty call stack)".to_string()
+        } else {
+            let mut s = String::from("call stack (top to bottom):\n");
+
+            for (i, addr) in self.call_stack.iter().rev().enumerate() {
+                s.push_str(&format!("  {}: return to instruction {}\n", i, addr));
+            }
+
+            s
+        }
     }
 }

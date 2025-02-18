@@ -31,4 +31,9 @@ fn main() {
     if let Err(e) = vm.run() {
         eprintln!("VM error: {}", e);
     }
+
+    #[cfg(debug_assertions)]
+    {
+        println!("{}", vm.visualize_callstack());
+    }
 }
