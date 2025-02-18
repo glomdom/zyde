@@ -1,0 +1,9 @@
+push 10
+push 59
+call hello
+print
+halt
+
+label hello
+add
+return

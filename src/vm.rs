@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use crate::instruction::Instruction;
+use crate::{instruction::Instruction, number::Number};
 
 #[derive(Debug)]
 pub enum VmError {
@@ -34,15 +34,18 @@ impl Frame {
     }
 }
 
-pub struct VM {
+pub struct VM<T: Number> {
     pc: usize,
-    stack: Vec<i32>,
-    program: Vec<Instruction>,
+    stack: Vec<T>,
+    program: Vec<Instruction<T>>,
     call_stack: Vec<Frame>,
 }
 
-impl VM {
-    pub fn new(program: Vec<Instruction>) -> Self {
+impl<T> VM<T>
+where
+    T: Number,
+{
+    pub fn new(program: Vec<Instruction<T>>) -> Self {
         let initial_frame = Frame::new(program.len());
 
         Self {
@@ -64,7 +67,13 @@ impl VM {
                 Instruction::Subtract => self.binary_op(|a, b| b - a, "subtraction")?,
                 Instruction::Divide => self.binary_op(|a, b| b / a, "division")?,
                 Instruction::Multiply => self.binary_op(|a, b| a * b, "multiplication")?,
-                Instruction::Print => println!("{:?}", self.stack.last()),
+                Instruction::Print => {
+                    if let Some(val) = self.stack.last() {
+                        println!("{}", val);
+                    } else {
+                        println!("(empty stack)");
+                    }
+                }
 
                 Instruction::Jump(addr) => self.jump(addr)?,
                 Instruction::Call(addr) => self.call(addr)?,
@@ -79,7 +88,7 @@ impl VM {
 
     fn binary_op<F>(&mut self, op: F, op_name: &str) -> Result<(), VmError>
     where
-        F: Fn(i32, i32) -> i32,
+        F: Fn(T, T) -> T,
     {
         let a = self
             .stack
@@ -123,7 +132,7 @@ impl VM {
             .pop()
             .ok_or_else(|| VmError::StackUnderflow("conditional_jump".to_string()))?;
 
-        if condition != 0 {
+        if condition != T::from(0) {
             self.jump(addr)?;
         }
 

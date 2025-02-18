@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
-pub enum Instruction {
-    Push(i32),
+pub enum Instruction<T: Copy> {
+    Push(T),
     Add,
     Subtract,
     Divide,
