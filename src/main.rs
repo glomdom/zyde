@@ -1,11 +1,11 @@
 mod instruction;
-mod vm;
 mod ir;
 mod number;
-
-use std::fs;
+mod vm;
 
 use clap::Parser;
+use std::fs;
+
 use ir::assemble;
 use vm::VM;
 
@@ -13,14 +13,12 @@ use vm::VM;
 #[command(author, version, about = "Assembles IR code into zyde instructions", long_about = None)]
 struct Args {
     #[arg(short, long)]
-    input: String
+    input: String,
 }
 
 fn main() {
     let args = Args::parse();
-
-    let content = fs::read_to_string(&args.input)
-        .expect("failed to read input IR file");
+    let content = fs::read_to_string(&args.input).expect("failed to read input IR file");
 
     let instructions = assemble::<i32>(&content);
     // for (i, inst) in instructions.iter().enumerate() {
