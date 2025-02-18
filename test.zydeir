@@ -1,9 +1,9 @@
 push 10
 push 59
-call hello
+call foo
 print
 halt
 
-label hello
+label foo
 add
 return
