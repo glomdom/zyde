@@ -41,11 +41,11 @@ impl fmt::Display for Frame {
 }
 
 pub struct VM<T: Number> {
-    pc: usize,
-    stack: Vec<T>,
-    program: Vec<Instruction<T>>,
-    call_stack: Vec<Frame>,
-    variables: HashMap<String, T>,
+    pub pc: usize,
+    pub stack: Vec<T>,
+    pub program: Vec<Instruction<T>>,
+    pub call_stack: Vec<Frame>,
+    pub variables: HashMap<String, T>,
 }
 
 impl<T> VM<T>

@@ -1,13 +1,8 @@
-mod instruction;
-mod ir;
-mod number;
-mod vm;
-
 use clap::Parser;
 use std::fs;
 
-use ir::assemble;
-use vm::VM;
+use zyde::ir::assemble;
+use zyde::vm::VM;
 
 #[derive(Parser)]
 #[command(author, version, about = "Assembles IR code into zyde instructions", long_about = None)]
