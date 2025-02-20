@@ -66,87 +66,94 @@ where
 
     pub fn run(&mut self) -> Result<(), VmError> {
         while self.pc < self.program.len() {
-            let instr = self.program[self.pc].clone();
+            let instr = &self.program[self.pc].clone();
+
             self.pc += 1;
-
-            match instr {
-                Instruction::Push(value) => self.stack.push(value),
-                Instruction::Add => self.binary_op(|a, b| a + b, "addition")?,
-                Instruction::Subtract => self.binary_op(|a, b| b - a, "subtraction")?,
-                Instruction::Divide => self.binary_op(|a, b| b / a, "division")?,
-                Instruction::Multiply => self.binary_op(|a, b| a * b, "multiplication")?,
-                Instruction::Print => {
-                    if let Some(val) = self.stack.last() {
-                        println!("{}", val);
-                    } else {
-                        println!("(empty stack)");
-                    }
-                }
-
-                Instruction::Store(var) => {
-                    let value = self
-                        .stack
-                        .pop()
-                        .ok_or_else(|| VmError::StackUnderflow("store".to_string()))?;
-
-                    self.variables.insert(var, value);
-                }
-
-                Instruction::Load(var) => {
-                    let value = self.variables.get(&var).ok_or_else(|| {
-                        VmError::StackUnderflow(format!("variable '{}' not found", var))
-                    })?;
-
-                    self.stack.push(*value);
-                }
-
-                Instruction::Equal => {
-                    self.binary_op(|a, b| if a == b { T::from(1) } else { T::from(0) }, "equal")?
-                }
-
-                Instruction::LessThan => self.binary_op(
-                    |a, b| if b < a { T::from(1) } else { T::from(0) },
-                    "less_than",
-                )?,
-
-                Instruction::GreaterThan => self.binary_op(
-                    |a, b| if b > a { T::from(1) } else { T::from(0) },
-                    "greater_than",
-                )?,
-
-                Instruction::Dup => {
-                    let value = *self
-                        .stack
-                        .last()
-                        .ok_or_else(|| VmError::StackUnderflow("dup".to_string()))?;
-
-                    self.stack.push(value);
-                }
-
-                Instruction::Swap => {
-                    let len = self.stack.len();
-
-                    if len < 2 {
-                        return Err(VmError::StackUnderflow("swap".to_string()));
-                    }
-
-                    self.stack.swap(len - 1, len - 2);
-                }
-
-                Instruction::Pop => {
-                    self.stack
-                        .pop()
-                        .ok_or_else(|| VmError::StackUnderflow("pop".to_string()))?;
-                }
-
-                Instruction::Jump(addr) => self.jump(addr)?,
-                Instruction::Call(addr) => self.call(addr)?,
-                Instruction::ConditionalJump(addr) => self.conditional_jump(addr)?,
-                Instruction::Return => self.ret()?,
-
-                Instruction::Halt => break,
-            }
+            self.execute_instruction(instr)?;
         }
+
+        Ok(())
+    }
+
+    fn execute_instruction(&mut self, instr: &Instruction<T>) -> Result<(), VmError> {
+        match instr {
+            Instruction::Push(value) => self.stack.push(*value),
+            Instruction::Add => self.binary_op(|a, b| a + b, "addition")?,
+            Instruction::Subtract => self.binary_op(|a, b| b - a, "subtraction")?,
+            Instruction::Divide => self.binary_op(|a, b| b / a, "division")?,
+            Instruction::Multiply => self.binary_op(|a, b| a * b, "multiplication")?,
+            Instruction::Print => {
+                if let Some(val) = self.stack.last() {
+                    println!("{}", val);
+                } else {
+                    println!("(empty stack)");
+                }
+            }
+
+            Instruction::Store(var) => {
+                let value = self
+                    .stack
+                    .pop()
+                    .ok_or_else(|| VmError::StackUnderflow("store".to_string()))?;
+
+                self.variables.insert(var.clone(), value);
+            }
+
+            Instruction::Load(var) => {
+                let value = self.variables.get(var).ok_or_else(|| {
+                    VmError::StackUnderflow(format!("variable '{}' not found", var))
+                })?;
+
+                self.stack.push(*value);
+            }
+
+            Instruction::Equal => {
+                self.binary_op(|a, b| if a == b { T::from(1) } else { T::from(0) }, "equal")?
+            }
+
+            Instruction::LessThan => self.binary_op(
+                |a, b| if b < a { T::from(1) } else { T::from(0) },
+                "less_than",
+            )?,
+
+            Instruction::GreaterThan => self.binary_op(
+                |a, b| if b > a { T::from(1) } else { T::from(0) },
+                "greater_than",
+            )?,
+
+            Instruction::Dup => {
+                let value = *self
+                    .stack
+                    .last()
+                    .ok_or_else(|| VmError::StackUnderflow("dup".to_string()))?;
+
+                self.stack.push(value);
+            }
+
+            Instruction::Swap => {
+                let len = self.stack.len();
+
+                if len < 2 {
+                    return Err(VmError::StackUnderflow("swap".to_string()));
+                }
+
+                self.stack.swap(len - 1, len - 2);
+            }
+
+            Instruction::Pop => {
+                self.stack
+                    .pop()
+                    .ok_or_else(|| VmError::StackUnderflow("pop".to_string()))?;
+            }
+
+            Instruction::Jump(addr) => self.jump(*addr)?,
+            Instruction::Call(addr) => self.call(*addr)?,
+            Instruction::ConditionalJump(addr) => self.conditional_jump(*addr)?,
+            Instruction::Return => self.ret()?,
+
+            Instruction::Halt => self.pc = self.program.len(),
+        }
+
         Ok(())
     }
 
