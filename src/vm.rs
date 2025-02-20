@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{collections::HashMap, error::Error, fmt};
 
 use crate::{instruction::Instruction, number::Number};
 
@@ -45,11 +45,12 @@ pub struct VM<T: Number> {
     stack: Vec<T>,
     program: Vec<Instruction<T>>,
     call_stack: Vec<Frame>,
+    variables: HashMap<String, T>,
 }
 
 impl<T> VM<T>
 where
-    T: Number,
+    T: Number + PartialOrd,
 {
     pub fn new(program: Vec<Instruction<T>>) -> Self {
         let initial_frame = Frame::new(program.len());
@@ -59,12 +60,13 @@ where
             stack: vec![],
             program,
             call_stack: vec![initial_frame],
+            variables: HashMap::new(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
         while self.pc < self.program.len() {
-            let instr = self.program[self.pc];
+            let instr = self.program[self.pc].clone();
             self.pc += 1;
 
             match instr {
@@ -79,6 +81,62 @@ where
                     } else {
                         println!("(empty stack)");
                     }
+                }
+
+                Instruction::Store(var) => {
+                    let value = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| VmError::StackUnderflow("store".to_string()))?;
+
+                    self.variables.insert(var, value);
+                }
+
+                Instruction::Load(var) => {
+                    let value = self.variables.get(&var).ok_or_else(|| {
+                        VmError::StackUnderflow(format!("variable '{}' not found", var))
+                    })?;
+
+                    self.stack.push(*value);
+                }
+
+                Instruction::Equal => {
+                    self.binary_op(|a, b| if a == b { T::from(1) } else { T::from(0) }, "equal")?
+                }
+
+                Instruction::LessThan => self.binary_op(
+                    |a, b| if b < a { T::from(1) } else { T::from(0) },
+                    "less_than",
+                )?,
+
+                Instruction::GreaterThan => self.binary_op(
+                    |a, b| if b > a { T::from(1) } else { T::from(0) },
+                    "greater_than",
+                )?,
+
+                Instruction::Dup => {
+                    let value = *self
+                        .stack
+                        .last()
+                        .ok_or_else(|| VmError::StackUnderflow("dup".to_string()))?;
+
+                    self.stack.push(value);
+                }
+
+                Instruction::Swap => {
+                    let len = self.stack.len();
+
+                    if len < 2 {
+                        return Err(VmError::StackUnderflow("swap".to_string()));
+                    }
+
+                    self.stack.swap(len - 1, len - 2);
+                }
+
+                Instruction::Pop => {
+                    self.stack
+                        .pop()
+                        .ok_or_else(|| VmError::StackUnderflow("pop".to_string()))?;
                 }
 
                 Instruction::Jump(addr) => self.jump(addr)?,

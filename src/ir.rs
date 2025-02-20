@@ -17,6 +17,15 @@ pub enum IR<T: Number> {
     Label(String),
     Return,
 
+    Store(String),
+    Load(String),
+    Equal,
+    LessThan,
+    GreaterThan,
+    Dup,
+    Swap,
+    Pop,
+
     Halt,
 }
 
@@ -24,12 +33,12 @@ pub fn parse_ir<T: Number>(input: &str) -> Vec<IR<T>> {
     let mut ir_insts = Vec::new();
 
     for (lineno, line) in input.lines().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with(';') {
+        let line = line.split(';').next().unwrap().trim();
+        if line.is_empty() {
             continue;
         }
 
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.is_empty() {
             continue;
         }
@@ -80,6 +89,30 @@ pub fn parse_ir<T: Number>(input: &str) -> Vec<IR<T>> {
 
             "RETURN" => ir_insts.push(IR::Return),
             "HALT" => ir_insts.push(IR::Halt),
+
+            "STORE" => {
+                if parts.len() != 2 {
+                    panic!("L{}: STORE requires one operand", lineno + 1);
+                }
+
+                ir_insts.push(IR::Store(parts[1].to_string()));
+            }
+
+            "LOAD" => {
+                if parts.len() != 2 {
+                    panic!("L{}: LOAD requires one operand", lineno + 1);
+                }
+
+                ir_insts.push(IR::Load(parts[1].to_string()));
+            }
+
+            "EQUAL" => ir_insts.push(IR::Equal),
+            "LT" => ir_insts.push(IR::LessThan),
+            "GT" => ir_insts.push(IR::GreaterThan),
+            "DUP" => ir_insts.push(IR::Dup),
+            "SWAP" => ir_insts.push(IR::Swap),
+            "POP" => ir_insts.push(IR::Pop),
+
             "LABEL" => {
                 if parts.len() != 2 {
                     panic!("L{}: LABEL requires one operand", lineno + 1);
@@ -99,7 +132,6 @@ pub fn parse_ir<T: Number>(input: &str) -> Vec<IR<T>> {
 
 pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T>> {
     let ir_insts = parse_ir(input);
-
     let mut label_map: HashMap<String, usize> = HashMap::new();
     let mut curr_index = 0;
 
@@ -120,12 +152,10 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
             IR::Multiply => final_insts.push(Instruction::Multiply),
             IR::Divide => final_insts.push(Instruction::Divide),
             IR::Print => final_insts.push(Instruction::Print),
-
             IR::Jump(label) => {
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
-
                 final_insts.push(Instruction::Jump(*target));
             }
 
@@ -133,7 +163,6 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
-
                 final_insts.push(Instruction::Call(*target));
             }
 
@@ -141,12 +170,21 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
-
                 final_insts.push(Instruction::ConditionalJump(*target));
             }
 
             IR::Return => final_insts.push(Instruction::Return),
             IR::Halt => final_insts.push(Instruction::Halt),
+
+            IR::Store(var) => final_insts.push(Instruction::Store(var)),
+            IR::Load(var) => final_insts.push(Instruction::Load(var)),
+            IR::Equal => final_insts.push(Instruction::Equal),
+            IR::LessThan => final_insts.push(Instruction::LessThan),
+            IR::GreaterThan => final_insts.push(Instruction::GreaterThan),
+            IR::Dup => final_insts.push(Instruction::Dup),
+            IR::Swap => final_insts.push(Instruction::Swap),
+            IR::Pop => final_insts.push(Instruction::Pop),
+
             IR::Label(_) => {}
         }
     }

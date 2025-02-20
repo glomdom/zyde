@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Instruction<T: Copy> {
     Push(T),
@@ -12,6 +12,15 @@ pub enum Instruction<T: Copy> {
     Call(usize),
     ConditionalJump(usize),
     Return,
+
+    Store(String),
+    Load(String),
+    Equal,
+    LessThan,
+    GreaterThan,
+    Dup,
+    Swap,
+    Pop,
 
     Halt,
 }

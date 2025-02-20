@@ -1,9 +1,30 @@
-push 10
-push 59
-call foo
-print
-halt
+PUSH 10
+STORE x         ; x = 10
+PUSH 20
+STORE y         ; y = 10
 
-label foo
-add
-return
+; x < y (1 - true)
+LOAD x          ; push 10
+LOAD y          ; push 10
+LT              ; if 10 < 20, push 1 else 0
+PRINT           ; expected 1
+
+; x == y (0 - false)
+LOAD x
+LOAD y
+EQUAL           ; if 10 = 20, push 1 else 0
+PRINT           ; expected 0
+
+; y > x (1 - true)
+LOAD y
+LOAD x
+GT              ; if 20 > 10, push 1 else 0
+PRINT           ; expected 1
+
+PUSH 42
+DUP             ; duplicate top of stack; stack is [42, 42]
+SWAP            ; swap top and top-1 element of stack; stack is [42, 42]
+POP             ; pop top element; stack is [42]
+PRINT           ; expected 42
+
+HALT            ; end of program
