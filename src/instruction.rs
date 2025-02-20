@@ -22,5 +22,7 @@ pub enum Instruction<T: Copy> {
     Swap,
     Pop,
 
+    Not,
+
     Halt,
 }

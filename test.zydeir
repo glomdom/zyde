@@ -1,30 +1,23 @@
 PUSH 10
-STORE x         ; x = 10
-PUSH 20
-STORE y         ; y = 10
+PUSH 10
+EQUAL
+IF
+  PUSH 1
+  PRINT         ; expected to print 1 (true branch)
+ELSE
+  PUSH 0
+  PRINT         ; would print 0 if the numbers weren't equal
+ENDIF
 
-; x < y (1 - true)
-LOAD x          ; push 10
-LOAD y          ; push 10
-LT              ; if 10 < 20, push 1 else 0
-PRINT           ; expected 1
-
-; x == y (0 - false)
-LOAD x
-LOAD y
-EQUAL           ; if 10 = 20, push 1 else 0
-PRINT           ; expected 0
-
-; y > x (1 - true)
-LOAD y
-LOAD x
-GT              ; if 20 > 10, push 1 else 0
-PRINT           ; expected 1
-
-PUSH 42
-DUP             ; duplicate top of stack; stack is [42, 42]
-SWAP            ; swap top and top-1 element of stack; stack is [42, 42]
-POP             ; pop top element; stack is [42]
-PRINT           ; expected 42
+PUSH 3
+DO
+  DUP           ; duplicate counter for printing
+  PRINT         ; print the current counter value
+  PUSH 1
+  SUBTRACT      ; decrement counter
+  DUP           ; duplicate counter for condition check
+  PUSH 0
+  GT            ; if counter > 0, GT pushes 1; else 0
+ENDDO
 
 HALT            ; end of program

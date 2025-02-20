@@ -151,6 +151,12 @@ where
             Instruction::ConditionalJump(addr) => self.conditional_jump(*addr)?,
             Instruction::Return => self.ret()?,
 
+            Instruction::Not => {
+                let val = self.stack.pop().ok_or_else(|| VmError::StackUnderflow("not".to_string()))?;
+
+                self.stack.push(if val == T::from(0) { T::from(1) } else { T::from(0) });
+            }
+
             Instruction::Halt => self.pc = self.program.len(),
         }
 
@@ -203,7 +209,7 @@ where
             .pop()
             .ok_or_else(|| VmError::StackUnderflow("conditional_jump".to_string()))?;
 
-        if condition != T::from(0) {
+        if condition == T::from(0) {
             self.jump(addr)?;
         }
 

@@ -1,5 +1,5 @@
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -11,6 +11,7 @@ pub trait Number:
     + Div<Output = Self>
     + PartialEq
     + Display
+    + Debug
     + From<i32>
 {
 }

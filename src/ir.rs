@@ -26,6 +26,16 @@ pub enum IR<T: Number> {
     Swap,
     Pop,
 
+    If,
+    Else,
+    EndIf,
+    While,
+    EndWhile,
+    Do,
+    EndDo,
+
+    Not,
+
     Halt,
 }
 
@@ -121,6 +131,16 @@ pub fn parse_ir<T: Number>(input: &str) -> Vec<IR<T>> {
                 ir_insts.push(IR::Label(parts[1].to_string()));
             }
 
+            "IF" => ir_insts.push(IR::If),
+            "ELSE" => ir_insts.push(IR::Else),
+            "ENDIF" => ir_insts.push(IR::EndIf),
+            "WHILE" => ir_insts.push(IR::While),
+            "ENDWHILE" => ir_insts.push(IR::EndWhile),
+            "DO" => ir_insts.push(IR::Do),
+            "ENDDO" => ir_insts.push(IR::EndDo),
+
+            "NOT" => ir_insts.push(IR::Not),
+
             other => {
                 panic!("L{}: unknown instruction '{}'", lineno + 1, other);
             }
@@ -132,10 +152,11 @@ pub fn parse_ir<T: Number>(input: &str) -> Vec<IR<T>> {
 
 pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T>> {
     let ir_insts = parse_ir(input);
+    let lowered_ir = lower_control_flow(ir_insts);
     let mut label_map: HashMap<String, usize> = HashMap::new();
     let mut curr_index = 0;
 
-    for inst in &ir_insts {
+    for inst in &lowered_ir {
         if let IR::Label(name) = inst {
             label_map.insert(name.clone(), curr_index);
         } else {
@@ -144,7 +165,7 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
     }
 
     let mut final_insts = Vec::new();
-    for inst in ir_insts {
+    for inst in lowered_ir {
         match inst {
             IR::Push(value) => final_insts.push(Instruction::Push(value)),
             IR::Add => final_insts.push(Instruction::Add),
@@ -185,9 +206,104 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
             IR::Swap => final_insts.push(Instruction::Swap),
             IR::Pop => final_insts.push(Instruction::Pop),
 
+            IR::Not => final_insts.push(Instruction::Not),
+
             IR::Label(_) => {}
+
+            IR::If | IR::Else | IR::EndIf | IR::While | IR::EndWhile | IR::Do | IR::EndDo => {
+                panic!("Unlowered control flow construct found")
+            }
         }
     }
 
     final_insts
+}
+
+pub fn lower_control_flow<T: Number>(ir: Vec<IR<T>>) -> Vec<IR<T>> {
+    let mut output = Vec::new();
+    let mut control_stack: Vec<(&str, usize, String)> = Vec::new();
+
+    for inst in ir {
+        match inst {
+            IR::If => {
+                control_stack.push(("if", output.len(), String::new()));
+                output.push(IR::ConditionalJump("".to_string())); // we patch this later
+            }
+
+            IR::Else => {
+                if let Some(("if", if_index, _)) = control_stack.pop() {
+                    let else_label = format!("L{}", output.len());
+                    output[if_index] = IR::ConditionalJump(else_label.clone());
+                    control_stack.push(("endif", output.len(), String::new()));
+                    output.push(IR::Jump("".to_string()));
+                    output.push(IR::Label(else_label));
+                } else {
+                    panic!("ELSE without matching IF");
+                }
+            }
+
+            IR::EndIf => {
+                if let Some(("endif", jump_index, _)) = control_stack.pop() {
+                    let endif_label = format!("L{}", output.len());
+                    output[jump_index] = IR::Jump(endif_label.clone());
+                    output.push(IR::Label(endif_label));
+                } else if let Some(("if", if_index, _)) = control_stack.pop() {
+                    let endif_label = format!("L{}", output.len());
+                    output[if_index] = IR::ConditionalJump(endif_label.clone());
+                    output.push(IR::Label(endif_label));
+                } else {
+                    panic!("ENDIF without matching IF/ELSE");
+                }
+            }
+
+            IR::While => {
+                let loop_start = format!("L{}", output.len());
+                output.push(IR::Label(loop_start.clone()));
+
+                let cond_jump_index = output.len();
+                output.push(IR::ConditionalJump("".to_string()));
+                control_stack.push(("while", cond_jump_index, loop_start));
+            }
+
+            IR::EndWhile => {
+                if let Some(("while", cond_jump_index, loop_start)) = control_stack.pop() {
+                    output.push(IR::Jump(loop_start.clone()));
+
+                    let exit_label = format!("L{}", output.len());
+                    output[cond_jump_index] = IR::ConditionalJump(exit_label.clone());
+                    output.push(IR::Label(exit_label));
+                } else {
+                    panic!("ENDWHILE without matching WHILE");
+                }
+            }
+
+            IR::Do => {
+                let loop_start = format!("L{}", output.len());
+                output.push(IR::Label(loop_start.clone()));
+                control_stack.push(("do", output.len(), loop_start));
+            }
+
+            IR::EndDo => {
+                if let Some(("do", _, loop_start)) = control_stack.pop() {
+                    output.push(IR::Not);
+                    output.push(IR::ConditionalJump(loop_start.clone()));
+
+                    let exit_label = format!("L{}", output.len());
+                    output.push(IR::Label(exit_label));
+                } else {
+                    panic!("ENDDO without matching DO");
+                }
+            }
+
+            other => {
+                output.push(other);
+            }
+        }
+    }
+
+    if !control_stack.is_empty() {
+        panic!("Mismatched control flow constructs");
+    }
+
+    output
 }
