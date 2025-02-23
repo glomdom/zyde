@@ -204,7 +204,7 @@ fn test_do_loop() {
     let mut vm = VM::new(instructions);
     vm.run().unwrap();
 
-    assert_eq!(vm.stack, vec![3, 2, 1, 0]);
+    assert_eq!(vm.stack, vec![3, 2, 1]);
 }
 
 fn assemble_lowered<T: Number>(lowered: Vec<IR<T>>) -> Vec<Instruction<T>> {

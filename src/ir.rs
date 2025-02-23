@@ -292,6 +292,7 @@ pub fn lower_control_flow<T: Number>(ir: Vec<IR<T>>) -> Vec<IR<T>> {
                     output.push(IR::ConditionalJump(exit_label.clone()));
                     output.push(IR::Jump(loop_start.clone()));
                     output.push(IR::Label(exit_label));
+                    output.push(IR::Pop);
                 } else {
                     panic!("ENDDO without matching DO");
                 }
