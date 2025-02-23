@@ -221,19 +221,6 @@ where
         Ok(())
     }
 
-    fn conditional_jump_true(&mut self, addr: usize) -> Result<(), VmError> {
-        let condition = self
-            .stack
-            .pop()
-            .ok_or_else(|| VmError::StackUnderflow("conditional_jump_true".to_string()))?;
-
-        if condition != T::from(0) {
-            self.jump(addr)?;
-        }
-
-        Ok(())
-    }
-
     fn ret(&mut self) -> Result<(), VmError> {
         let frame = self.call_stack.pop().ok_or(VmError::CallStackEmpty)?;
         self.pc = frame.return_address;
