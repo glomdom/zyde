@@ -177,6 +177,7 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
+
                 final_insts.push(Instruction::Jump(*target));
             }
 
@@ -184,6 +185,7 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
+
                 final_insts.push(Instruction::Call(*target));
             }
 
@@ -191,6 +193,7 @@ pub fn assemble<T: Number>(input: &str) -> Vec<crate::instruction::Instruction<T
                 let target = label_map
                     .get(&label)
                     .unwrap_or_else(|| panic!("undefined label: {}", label));
+
                 final_insts.push(Instruction::ConditionalJump(*target));
             }
 
@@ -227,20 +230,20 @@ pub fn lower_control_flow<T: Number>(ir: Vec<IR<T>>) -> Vec<IR<T>> {
         match inst {
             IR::If => {
                 control_stack.push(("if", output.len(), String::new()));
-                output.push(IR::ConditionalJump("".to_string())); // we patch this later
+                output.push(IR::ConditionalJump("".to_string())); // Placeholder for jump target
             }
-
+            
             IR::Else => {
                 if let Some(("if", if_index, _)) = control_stack.pop() {
                     let else_label = format!("L{}", output.len());
                     output[if_index] = IR::ConditionalJump(else_label.clone());
                     control_stack.push(("endif", output.len(), String::new()));
-                    output.push(IR::Jump("".to_string()));
+                    output.push(IR::Jump("".to_string())); // Placeholder for jump target
                     output.push(IR::Label(else_label));
                 } else {
                     panic!("ELSE without matching IF");
                 }
-            }
+            }            
 
             IR::EndIf => {
                 if let Some(("endif", jump_index, _)) = control_stack.pop() {
@@ -254,7 +257,7 @@ pub fn lower_control_flow<T: Number>(ir: Vec<IR<T>>) -> Vec<IR<T>> {
                 } else {
                     panic!("ENDIF without matching IF/ELSE");
                 }
-            }
+            }            
 
             IR::While => {
                 let loop_start = format!("L{}", output.len());
@@ -282,12 +285,10 @@ pub fn lower_control_flow<T: Number>(ir: Vec<IR<T>>) -> Vec<IR<T>> {
                 output.push(IR::Label(loop_start.clone()));
                 control_stack.push(("do", output.len(), loop_start));
             }
-
+            
             IR::EndDo => {
                 if let Some(("do", _, loop_start)) = control_stack.pop() {
-                    output.push(IR::Not);
-                    output.push(IR::ConditionalJump(loop_start.clone()));
-
+                    output.push(IR::ConditionalJump(loop_start.clone())); // Jump back if condition is true
                     let exit_label = format!("L{}", output.len());
                     output.push(IR::Label(exit_label));
                 } else {

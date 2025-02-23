@@ -5,7 +5,7 @@ use zyde::{
     instruction::Instruction,
     ir::{IR, assemble, lower_control_flow, parse_ir},
     number::Number,
-    vm::VM,
+    vm::{VM, VmError},
 };
 
 #[test]
@@ -102,6 +102,7 @@ fn test_stack_manipulation() {
             POP
             HALT
         ";
+
     let instructions = assemble::<i32>(program);
     let mut vm = VM::new(instructions);
     vm.run().unwrap();
@@ -130,6 +131,80 @@ fn test_ir_lowering_debug() {
     } else {
         panic!("Lowered IR is empty");
     }
+}
+
+#[test]
+fn test_function_call() {
+    let program = "\
+        CALL func
+        HALT
+        LABEL func
+        PUSH 42
+        RETURN";
+
+    let instructions = assemble::<i32>(program);
+    let mut vm = VM::new(instructions);
+    vm.run().unwrap();
+
+    assert_eq!(vm.stack, vec![42]);
+}
+
+#[test]
+fn test_stack_underflow() {
+    let program = "ADD";
+    let instructions = assemble::<i32>(program);
+    let mut vm = VM::new(instructions);
+    let result = vm.run();
+
+    assert!(matches!(result, Err(VmError::StackUnderflow(_))));
+}
+
+#[test]
+fn test_not_instruction() {
+    let program = "\
+        PUSH 0
+        NOT
+        PUSH 1
+        NOT
+        HALT";
+
+    let instructions = assemble::<i32>(program);
+    let mut vm = VM::new(instructions);
+    vm.run().unwrap();
+
+    assert_eq!(vm.stack, vec![1, 0]);
+}
+
+#[test]
+fn test_invalid_return() {
+    let program = "RETURN";
+    let instructions = assemble::<i32>(program);
+    let mut vm = VM::new(instructions);
+    let result = vm.run();
+
+    assert!(matches!(result, Err(VmError::CallStackEmpty)));
+}
+
+#[test]
+fn test_do_loop() {
+    let program = "\
+        PUSH 3
+        DO
+            DUP
+            PRINT
+            PUSH 1
+            SUBTRACT
+            DUP
+            PUSH 0
+            GT
+        ENDDO
+        HALT";
+
+    let instructions = assemble::<i32>(program);
+    let mut vm = VM::new(instructions);
+    vm.run().unwrap();
+
+    assert_eq!(vm.stack, vec![3, 0]);
 }
 
 fn assemble_lowered<T: Number>(lowered: Vec<IR<T>>) -> Vec<Instruction<T>> {

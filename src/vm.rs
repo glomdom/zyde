@@ -53,13 +53,11 @@ where
     T: Number + PartialOrd,
 {
     pub fn new(program: Vec<Instruction<T>>) -> Self {
-        let initial_frame = Frame::new(program.len());
-
         Self {
             pc: 0,
             stack: vec![],
             program,
-            call_stack: vec![initial_frame],
+            call_stack: vec![],
             variables: HashMap::new(),
         }
     }
@@ -152,9 +150,16 @@ where
             Instruction::Return => self.ret()?,
 
             Instruction::Not => {
-                let val = self.stack.pop().ok_or_else(|| VmError::StackUnderflow("not".to_string()))?;
+                let val = self
+                    .stack
+                    .pop()
+                    .ok_or_else(|| VmError::StackUnderflow("not".to_string()))?;
 
-                self.stack.push(if val == T::from(0) { T::from(1) } else { T::from(0) });
+                self.stack.push(if val == T::from(0) {
+                    T::from(1)
+                } else {
+                    T::from(0)
+                });
             }
 
             Instruction::Halt => self.pc = self.program.len(),
@@ -210,6 +215,19 @@ where
             .ok_or_else(|| VmError::StackUnderflow("conditional_jump".to_string()))?;
 
         if condition == T::from(0) {
+            self.jump(addr)?;
+        }
+
+        Ok(())
+    }
+
+    fn conditional_jump_true(&mut self, addr: usize) -> Result<(), VmError> {
+        let condition = self
+            .stack
+            .pop()
+            .ok_or_else(|| VmError::StackUnderflow("conditional_jump_true".to_string()))?;
+
+        if condition != T::from(0) {
             self.jump(addr)?;
         }
 

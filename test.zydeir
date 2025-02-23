@@ -1,23 +1,11 @@
-PUSH 10
-PUSH 10
-EQUAL
-IF
-  PUSH 1
-  PRINT         ; expected to print 1 (true branch)
-ELSE
-  PUSH 0
-  PRINT         ; would print 0 if the numbers weren't equal
-ENDIF
-
 PUSH 3
-DO
-  DUP           ; duplicate counter for printing
-  PRINT         ; print the current counter value
-  PUSH 1
-  SUBTRACT      ; decrement counter
-  DUP           ; duplicate counter for condition check
-  PUSH 0
-  GT            ; if counter > 0, GT pushes 1; else 0
-ENDDO
-
-HALT            ; end of program
+        DO
+            DUP
+            PRINT
+            PUSH 1
+            SUBTRACT
+            DUP
+            PUSH 0
+            GT
+        ENDDO
+        HALT
