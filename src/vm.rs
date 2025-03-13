@@ -108,7 +108,7 @@ where
             }
 
             Instruction::Jump(addr) => self.jump(addr)?,
-            Instruction::Call(addr) => self.call(addr)?,
+            Instruction::Call { addr } => self.call(addr)?,
             Instruction::ConditionalJump { cond, target } => {
                 let condition = self.get_register(cond)?;
 

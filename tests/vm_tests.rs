@@ -152,7 +152,7 @@ fn test_conditional_jump_not_taken() {
 fn test_call_and_return() {
     let program = vec![
         Instruction::LoadImm { dest: 0, value: 10 },
-        Instruction::Call(4),
+        Instruction::Call { addr: 4 },
         Instruction::LoadImm { dest: 1, value: 42 },
         Instruction::Halt,
         Instruction::LoadImm {
@@ -373,7 +373,7 @@ fn test_return_without_call() {
 #[test]
 fn test_visualize_callstack() {
     let program = vec![
-        Instruction::Call(2),
+        Instruction::Call { addr: 2 },
         Instruction::Halt,
         Instruction::LoadImm { dest: 0, value: 42 },
         Instruction::Halt,

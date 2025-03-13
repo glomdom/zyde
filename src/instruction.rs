@@ -38,7 +38,7 @@ pub enum Instruction<T: Copy> {
     Jump(usize),
 
     /// Call a subroutine at instruction `addr`
-    Call(usize),
+    Call { addr: usize },
 
     /// If the value in register `cond` equals 0, jump to `target`
     ConditionalJump { cond: usize, target: usize },
