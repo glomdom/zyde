@@ -52,6 +52,9 @@ pub enum Instruction<T: Copy> {
     /// Load the value of variable `var` into register `dest`
     Load { dest: usize, var: String },
 
+    /// Copy the value from register `src` to `dest`
+    Mov { dest: usize, src: usize },
+
     /// Set register `dest` to 1 if reg[src1] == reg[src2], else 0
     Equal {
         dest: usize,

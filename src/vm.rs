@@ -132,6 +132,11 @@ where
                 self.set_register(dest, *value)?;
             }
 
+            Instruction::Mov { dest, src } => {
+                let value = self.get_register(src)?;
+                self.set_register(dest, value)?;
+            }
+
             Instruction::Equal { dest, src1, src2 } => {
                 let v1 = self.get_register(src1)?;
                 let v2 = self.get_register(src2)?;
