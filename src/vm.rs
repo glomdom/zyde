@@ -231,11 +231,11 @@ where
         if self.call_stack.is_empty() {
             "(empty call stack)".to_string()
         } else {
-            let mut s = String::from("call stack (top to bottom):\n");
+            let mut s = String::from("call stack:\n");
 
             for (i, frame) in self.call_stack.iter().rev().enumerate() {
                 s.push_str(&format!(
-                    "  {}: return to instruction {}\n",
+                    "  frame {}: return address -> {}\n",
                     i, frame.return_address
                 ));
             }

@@ -10,13 +10,9 @@ struct Args {
 
 fn main() {
     let program = vec![
-        Instruction::LoadImm { dest: 0, value: 10 },
-        Instruction::Call(4),
-        Instruction::Print { src: 0 },
+        Instruction::Call(2),
         Instruction::Halt,
-        Instruction::LoadImm { dest: 1, value: 42 },
-        Instruction::Print { src: 1 },
-        Instruction::Return,
+        Instruction::LoadImm { dest: 0, value: 42 },
         Instruction::Halt,
     ];
 

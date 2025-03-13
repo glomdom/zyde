@@ -383,7 +383,7 @@ fn test_visualize_callstack() {
     vm.run().unwrap();
 
     let callstack_vis = vm.visualize_callstack();
-    assert!(callstack_vis.contains("return to instruction"));
+    assert!(callstack_vis.contains("return address"));
 }
 
 #[test]
