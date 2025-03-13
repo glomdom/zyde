@@ -387,7 +387,7 @@ fn test_visualize_callstack() {
 }
 
 #[test]
-fn test_mov_instruction() {
+fn test_mov() {
     let program = vec![
         Instruction::LoadImm {
             dest: 0,
