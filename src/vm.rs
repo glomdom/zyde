@@ -134,6 +134,7 @@ where
 
             Instruction::Mov { dest, src } => {
                 let value = self.get_register(src)?;
+
                 self.set_register(dest, value)?;
             }
 
