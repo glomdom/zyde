@@ -1,10 +1,12 @@
-use std::{collections::HashMap, error::Error, fmt};
-
-use crate::{instruction::Instruction, number::Number};
+use crate::instruction::Instruction;
+use crate::number::Number;
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum VmError {
-    StackUnderflow(String),
+    RegisterOutOfBounds(String),
     ProgramCounterOutOfBounds,
     CallStackEmpty,
 }
@@ -12,10 +14,7 @@ pub enum VmError {
 impl fmt::Display for VmError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            VmError::StackUnderflow(op) => {
-                write!(f, "Stack underflow: not enough operands for {}", op)
-            }
-
+            VmError::RegisterOutOfBounds(msg) => write!(f, "Register error: {}", msg),
             VmError::ProgramCounterOutOfBounds => write!(f, "Program counter out of bounds"),
             VmError::CallStackEmpty => write!(f, "Call stack is empty, cannot return"),
         }
@@ -24,6 +23,7 @@ impl fmt::Display for VmError {
 
 impl Error for VmError {}
 
+#[derive(Debug)]
 pub struct Frame {
     return_address: usize,
 }
@@ -34,15 +34,11 @@ impl Frame {
     }
 }
 
-impl fmt::Display for Frame {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(call frame for address {})", self.return_address)
-    }
-}
-
+/// A register–based virtual machine
 pub struct VM<T: Number> {
     pub pc: usize,
-    pub stack: Vec<T>,
+
+    pub registers: Vec<T>,
     pub program: Vec<Instruction<T>>,
     pub call_stack: Vec<Frame>,
     pub variables: HashMap<String, T>,
@@ -50,22 +46,23 @@ pub struct VM<T: Number> {
 
 impl<T> VM<T>
 where
-    T: Number + PartialOrd,
+    T: Number + PartialOrd + From<i32>,
 {
-    pub fn new(program: Vec<Instruction<T>>) -> Self {
+    pub fn new(program: Vec<Instruction<T>>, num_registers: usize) -> Self {
+        let registers = vec![T::from(0); num_registers];
+
         Self {
             pc: 0,
-            stack: vec![],
+            registers,
             program,
-            call_stack: vec![],
+            call_stack: Vec::new(),
             variables: HashMap::new(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
         while self.pc < self.program.len() {
-            let instr = &self.program[self.pc].clone();
-
+            let instr = self.program[self.pc].clone();
             self.pc += 1;
             self.execute_instruction(instr)?;
         }
@@ -73,93 +70,101 @@ where
         Ok(())
     }
 
-    fn execute_instruction(&mut self, instr: &Instruction<T>) -> Result<(), VmError> {
+    fn execute_instruction(&mut self, instr: Instruction<T>) -> Result<(), VmError> {
         match instr {
-            Instruction::Push(value) => self.stack.push(*value),
-            Instruction::Add => self.binary_op(|a, b| a + b, "addition")?,
-            Instruction::Subtract => self.binary_op(|a, b| b - a, "subtraction")?,
-            Instruction::Divide => self.binary_op(|a, b| b / a, "division")?,
-            Instruction::Multiply => self.binary_op(|a, b| a * b, "multiplication")?,
-            Instruction::Print => {
-                if let Some(val) = self.stack.last() {
-                    println!("{}", val);
-                } else {
-                    println!("(empty stack)");
+            Instruction::LoadImm { dest, value } => self.set_register(dest, value)?,
+            Instruction::Add { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+
+                self.set_register(dest, v1 + v2)?;
+            }
+
+            Instruction::Sub { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+
+                self.set_register(dest, v1 - v2)?;
+            }
+
+            Instruction::Mul { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+
+                self.set_register(dest, v1 * v2)?;
+            }
+
+            Instruction::Div { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+
+                self.set_register(dest, v1 / v2)?;
+            }
+
+            Instruction::Print { src } => {
+                let value = self.get_register(src)?;
+
+                println!("{}", value);
+            }
+
+            Instruction::Jump(addr) => self.jump(addr)?,
+            Instruction::Call(addr) => self.call(addr)?,
+            Instruction::ConditionalJump { cond, target } => {
+                let condition = self.get_register(cond)?;
+
+                if condition == T::from(0) {
+                    self.jump(target)?;
                 }
             }
 
-            Instruction::Store(var) => {
-                let value = self
-                    .stack
-                    .pop()
-                    .ok_or_else(|| VmError::StackUnderflow("store".to_string()))?;
+            Instruction::Return => self.ret()?,
+            Instruction::Store { src, var } => {
+                let value = self.get_register(src)?;
 
-                self.variables.insert(var.clone(), value);
+                self.variables.insert(var, value);
             }
 
-            Instruction::Load(var) => {
-                let value = self.variables.get(var).ok_or_else(|| {
-                    VmError::StackUnderflow(format!("variable '{}' not found", var))
+            Instruction::Load { dest, var } => {
+                let value = self.variables.get(&var).ok_or_else(|| {
+                    VmError::RegisterOutOfBounds(format!("variable '{}' not found", var))
                 })?;
 
-                self.stack.push(*value);
+                self.set_register(dest, *value)?;
             }
 
-            Instruction::Equal => {
-                self.binary_op(|a, b| if a == b { T::from(1) } else { T::from(0) }, "equal")?
+            Instruction::Equal { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+                let result = if v1 == v2 { T::from(1) } else { T::from(0) };
+
+                self.set_register(dest, result)?;
             }
 
-            Instruction::LessThan => self.binary_op(
-                |a, b| if b < a { T::from(1) } else { T::from(0) },
-                "less_than",
-            )?,
+            Instruction::LessThan { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+                let result = if v1 < v2 { T::from(1) } else { T::from(0) };
 
-            Instruction::GreaterThan => self.binary_op(
-                |a, b| if b > a { T::from(1) } else { T::from(0) },
-                "greater_than",
-            )?,
-
-            Instruction::Dup => {
-                let value = *self
-                    .stack
-                    .last()
-                    .ok_or_else(|| VmError::StackUnderflow("dup".to_string()))?;
-
-                self.stack.push(value);
+                self.set_register(dest, result)?;
             }
 
-            Instruction::Swap => {
-                let len = self.stack.len();
+            Instruction::GreaterThan { dest, src1, src2 } => {
+                let v1 = self.get_register(src1)?;
+                let v2 = self.get_register(src2)?;
+                let result = if v1 > v2 { T::from(1) } else { T::from(0) };
 
-                if len < 2 {
-                    return Err(VmError::StackUnderflow("swap".to_string()));
-                }
-
-                self.stack.swap(len - 1, len - 2);
+                self.set_register(dest, result)?;
             }
 
-            Instruction::Pop => {
-                self.stack
-                    .pop()
-                    .ok_or_else(|| VmError::StackUnderflow("pop".to_string()))?;
-            }
-
-            Instruction::Jump(addr) => self.jump(*addr)?,
-            Instruction::Call(addr) => self.call(*addr)?,
-            Instruction::ConditionalJump(addr) => self.conditional_jump(*addr)?,
-            Instruction::Return => self.ret()?,
-
-            Instruction::Not => {
-                let val = self
-                    .stack
-                    .pop()
-                    .ok_or_else(|| VmError::StackUnderflow("not".to_string()))?;
-
-                self.stack.push(if val == T::from(0) {
+            Instruction::Not { dest, src } => {
+                let v = self.get_register(src)?;
+                let result = if v == T::from(0) {
                     T::from(1)
                 } else {
                     T::from(0)
-                });
+                };
+
+                self.set_register(dest, result)?;
             }
 
             Instruction::Halt => self.pc = self.program.len(),
@@ -168,23 +173,23 @@ where
         Ok(())
     }
 
-    fn binary_op<F>(&mut self, op: F, op_name: &str) -> Result<(), VmError>
-    where
-        F: Fn(T, T) -> T,
-    {
-        let a = self
-            .stack
-            .pop()
-            .ok_or_else(|| VmError::StackUnderflow(op_name.to_string()))?;
+    fn get_register(&self, index: usize) -> Result<T, VmError> {
+        self.registers.get(index).copied().ok_or_else(|| {
+            VmError::RegisterOutOfBounds(format!("invalid register index {}", index))
+        })
+    }
 
-        let b = self
-            .stack
-            .pop()
-            .ok_or_else(|| VmError::StackUnderflow(op_name.to_string()))?;
+    fn set_register(&mut self, index: usize, value: T) -> Result<(), VmError> {
+        if let Some(reg) = self.registers.get_mut(index) {
+            *reg = value;
 
-        self.stack.push(op(a, b));
-
-        Ok(())
+            Ok(())
+        } else {
+            Err(VmError::RegisterOutOfBounds(format!(
+                "invalid register index {}",
+                index
+            )))
+        }
     }
 
     fn jump(&mut self, addr: usize) -> Result<(), VmError> {
@@ -208,19 +213,6 @@ where
         Ok(())
     }
 
-    fn conditional_jump(&mut self, addr: usize) -> Result<(), VmError> {
-        let condition = self
-            .stack
-            .pop()
-            .ok_or_else(|| VmError::StackUnderflow("conditional_jump".to_string()))?;
-
-        if condition == T::from(0) {
-            self.jump(addr)?;
-        }
-
-        Ok(())
-    }
-
     fn ret(&mut self) -> Result<(), VmError> {
         let frame = self.call_stack.pop().ok_or(VmError::CallStackEmpty)?;
         self.pc = frame.return_address;
@@ -235,8 +227,11 @@ where
         } else {
             let mut s = String::from("call stack (top to bottom):\n");
 
-            for (i, addr) in self.call_stack.iter().rev().enumerate() {
-                s.push_str(&format!("  {}: return to instruction {}\n", i, addr));
+            for (i, frame) in self.call_stack.iter().rev().enumerate() {
+                s.push_str(&format!(
+                    "  {}: return to instruction {}\n",
+                    i, frame.return_address
+                ));
             }
 
             s

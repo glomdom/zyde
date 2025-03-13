@@ -1,8 +1,5 @@
 use clap::Parser;
-use std::fs;
-
-use zyde::ir::assemble;
-use zyde::vm::VM;
+use zyde::{instruction::Instruction, vm::VM};
 
 #[derive(Parser)]
 #[command(author, version, about = "Assembles IR code into zyde instructions", long_about = None)]
@@ -12,21 +9,22 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
-    let content = fs::read_to_string(&args.input).expect("failed to read input IR file");
+    let program = vec![
+        Instruction::LoadImm { dest: 0, value: 10 },
+        Instruction::Call(4),
+        Instruction::Print { src: 0 },
+        Instruction::Halt,
+        Instruction::LoadImm { dest: 1, value: 42 },
+        Instruction::Print { src: 1 },
+        Instruction::Return,
+        Instruction::Halt,
+    ];
 
-    let instructions = assemble::<i32>(&content);
-    // for (i, inst) in instructions.iter().enumerate() {
-    //     println!("{}: {:?}", i, inst);
-    // }
-
-    let mut vm = VM::new(instructions);
+    let mut vm = VM::new(program, 8);
     if let Err(e) = vm.run() {
         eprintln!("VM error: {}", e);
     }
 
     #[cfg(debug_assertions)]
-    {
-        println!("{}", vm.visualize_callstack());
-    }
+    println!("{}", vm.visualize_callstack());
 }
