@@ -385,3 +385,20 @@ fn test_visualize_callstack() {
     let callstack_vis = vm.visualize_callstack();
     assert!(callstack_vis.contains("return to instruction"));
 }
+
+#[test]
+fn test_mov_instruction() {
+    let program = vec![
+        Instruction::LoadImm {
+            dest: 0,
+            value: 123,
+        },
+        Instruction::Mov { dest: 1, src: 0 },
+        Instruction::Halt,
+    ];
+
+    let mut vm = VM::new(program, 4);
+    vm.run().unwrap();
+
+    assert_eq!(vm.registers[1], 123);
+}
