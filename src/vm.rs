@@ -1,5 +1,4 @@
 use crate::instruction::Instruction;
-use crate::number::Number;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -9,6 +8,7 @@ pub enum VmError {
     RegisterOutOfBounds(String),
     ProgramCounterOutOfBounds,
     CallStackEmpty,
+    VariableNotFound(String),
 }
 
 impl fmt::Display for VmError {
@@ -17,6 +17,7 @@ impl fmt::Display for VmError {
             VmError::RegisterOutOfBounds(msg) => write!(f, "Register error: {}", msg),
             VmError::ProgramCounterOutOfBounds => write!(f, "Program counter out of bounds"),
             VmError::CallStackEmpty => write!(f, "Call stack is empty, cannot return"),
+            VmError::VariableNotFound(name) => write!(f, "Variable '{}' not found", name),
         }
     }
 }
@@ -34,26 +35,20 @@ impl Frame {
     }
 }
 
-/// A register–based virtual machine
-pub struct VM<T: Number> {
+/// A register–based virtual machine using f64 for all values
+pub struct VM {
     pub pc: usize,
-
-    pub registers: Vec<T>,
-    pub program: Vec<Instruction<T>>,
+    pub registers: Vec<f64>,
+    pub program: Vec<Instruction>,
     pub call_stack: Vec<Frame>,
-    pub variables: HashMap<String, T>,
+    pub variables: HashMap<String, f64>,
 }
 
-impl<T> VM<T>
-where
-    T: Number + PartialOrd + From<i32>,
-{
-    pub fn new(program: Vec<Instruction<T>>, num_registers: usize) -> Self {
-        let registers = vec![T::from(0); num_registers];
-
+impl VM {
+    pub fn new(program: Vec<Instruction>, num_registers: usize) -> Self {
         Self {
             pc: 0,
-            registers,
+            registers: vec![0.0; num_registers],
             program,
             call_stack: Vec::new(),
             variables: HashMap::new(),
@@ -66,129 +61,99 @@ where
             self.pc += 1;
             self.execute_instruction(instr)?;
         }
-
         Ok(())
     }
 
-    fn execute_instruction(&mut self, instr: Instruction<T>) -> Result<(), VmError> {
+    fn execute_instruction(&mut self, instr: Instruction) -> Result<(), VmError> {
+        use Instruction::*;
         match instr {
-            Instruction::LoadImm { dest, value } => self.set_register(dest, value)?,
-            Instruction::Add { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-
-                self.set_register(dest, v1 + v2)?;
+            LoadImm { dest, value } => self.set_register(dest, value)?,
+            Add { dest, src1, src2 } => {
+                let v = self.get_register(src1)? + self.get_register(src2)?;
+                self.set_register(dest, v)?;
             }
-
-            Instruction::Sub { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-
-                self.set_register(dest, v1 - v2)?;
+            Sub { dest, src1, src2 } => {
+                let v = self.get_register(src1)? - self.get_register(src2)?;
+                self.set_register(dest, v)?;
             }
-
-            Instruction::Mul { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-
-                self.set_register(dest, v1 * v2)?;
+            Mul { dest, src1, src2 } => {
+                let v = self.get_register(src1)? * self.get_register(src2)?;
+                self.set_register(dest, v)?;
             }
-
-            Instruction::Div { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-
-                self.set_register(dest, v1 / v2)?;
+            Div { dest, src1, src2 } => {
+                let v = self.get_register(src1)? / self.get_register(src2)?;
+                self.set_register(dest, v)?;
             }
-
-            Instruction::Print { src } => {
-                let value = self.get_register(src)?;
-
-                println!("{}", value);
-            }
-
-            Instruction::Jump(addr) => self.jump(addr)?,
-            Instruction::Call { addr } => self.call(addr)?,
-            Instruction::ConditionalJump { cond, target } => {
-                let condition = self.get_register(cond)?;
-
-                if condition == T::from(0) {
+            Print { src } => println!("{}", self.get_register(src)?),
+            Jump(addr) => self.jump(addr)?,
+            Call { addr } => self.call(addr)?,
+            ConditionalJump { cond, target } => {
+                if self.get_register(cond)? == 0.0 {
                     self.jump(target)?;
                 }
             }
-
-            Instruction::Return => self.ret()?,
-            Instruction::Store { src, var } => {
-                let value = self.get_register(src)?;
-
-                self.variables.insert(var, value);
+            Return => self.ret()?,
+            Store { src, var } => {
+                let val = self.get_register(src)?;
+                self.variables.insert(var, val);
             }
-
-            Instruction::Load { dest, var } => {
-                let value = self.variables.get(&var).ok_or_else(|| {
-                    VmError::RegisterOutOfBounds(format!("variable '{}' not found", var))
-                })?;
-
-                self.set_register(dest, *value)?;
+            Load { dest, var } => {
+                let val = *self
+                    .variables
+                    .get(&var)
+                    .ok_or(VmError::VariableNotFound(var))?;
+                self.set_register(dest, val)?;
             }
-
-            Instruction::Mov { dest, src } => {
-                let value = self.get_register(src)?;
-
-                self.set_register(dest, value)?;
+            Mov { dest, src } => {
+                let val = self.get_register(src)?;
+                self.set_register(dest, val)?;
             }
-
-            Instruction::Equal { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-                let result = if v1 == v2 { T::from(1) } else { T::from(0) };
-
-                self.set_register(dest, result)?;
-            }
-
-            Instruction::LessThan { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-                let result = if v1 < v2 { T::from(1) } else { T::from(0) };
-
-                self.set_register(dest, result)?;
-            }
-
-            Instruction::GreaterThan { dest, src1, src2 } => {
-                let v1 = self.get_register(src1)?;
-                let v2 = self.get_register(src2)?;
-                let result = if v1 > v2 { T::from(1) } else { T::from(0) };
-
-                self.set_register(dest, result)?;
-            }
-
-            Instruction::Not { dest, src } => {
-                let v = self.get_register(src)?;
-                let result = if v == T::from(0) {
-                    T::from(1)
+            Equal { dest, src1, src2 } => {
+                let v = if self.get_register(src1)? == self.get_register(src2)? {
+                    1.0
                 } else {
-                    T::from(0)
+                    0.0
                 };
-
-                self.set_register(dest, result)?;
+                self.set_register(dest, v)?;
             }
-
-            Instruction::Halt => self.pc = self.program.len(),
+            LessThan { dest, src1, src2 } => {
+                let v = if self.get_register(src1)? < self.get_register(src2)? {
+                    1.0
+                } else {
+                    0.0
+                };
+                self.set_register(dest, v)?;
+            }
+            GreaterThan { dest, src1, src2 } => {
+                let v = if self.get_register(src1)? > self.get_register(src2)? {
+                    1.0
+                } else {
+                    0.0
+                };
+                self.set_register(dest, v)?;
+            }
+            Not { dest, src } => {
+                let v = if self.get_register(src)? == 0.0 {
+                    1.0
+                } else {
+                    0.0
+                };
+                self.set_register(dest, v)?;
+            }
+            Halt => self.pc = self.program.len(),
         }
-
         Ok(())
     }
 
-    fn get_register(&self, index: usize) -> Result<T, VmError> {
+    fn get_register(&self, index: usize) -> Result<f64, VmError> {
         self.registers.get(index).copied().ok_or_else(|| {
             VmError::RegisterOutOfBounds(format!("invalid register index {}", index))
         })
     }
 
-    fn set_register(&mut self, index: usize, value: T) -> Result<(), VmError> {
+    fn set_register(&mut self, index: usize, value: f64) -> Result<(), VmError> {
         if let Some(reg) = self.registers.get_mut(index) {
             *reg = value;
-
             Ok(())
         } else {
             Err(VmError::RegisterOutOfBounds(format!(
@@ -200,29 +165,25 @@ where
 
     fn jump(&mut self, addr: usize) -> Result<(), VmError> {
         if addr >= self.program.len() {
-            return Err(VmError::ProgramCounterOutOfBounds);
+            Err(VmError::ProgramCounterOutOfBounds)
+        } else {
+            self.pc = addr;
+            Ok(())
         }
-
-        self.pc = addr;
-
-        Ok(())
     }
 
     fn call(&mut self, addr: usize) -> Result<(), VmError> {
         if addr >= self.program.len() {
             return Err(VmError::ProgramCounterOutOfBounds);
         }
-
         self.call_stack.push(Frame::new(self.pc));
         self.pc = addr;
-
         Ok(())
     }
 
     fn ret(&mut self) -> Result<(), VmError> {
         let frame = self.call_stack.pop().ok_or(VmError::CallStackEmpty)?;
         self.pc = frame.return_address;
-
         Ok(())
     }
 
@@ -232,14 +193,12 @@ where
             "(empty call stack)".to_string()
         } else {
             let mut s = String::from("call stack:\n");
-
             for (i, frame) in self.call_stack.iter().rev().enumerate() {
                 s.push_str(&format!(
                     "  frame {}: return address -> {}\n",
                     i, frame.return_address
                 ));
             }
-
             s
         }
     }

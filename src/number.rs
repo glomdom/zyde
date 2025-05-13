@@ -13,7 +13,9 @@ pub trait Number:
     + Display
     + Debug
     + From<i32>
+    + std::fmt::Display
 {
 }
 
 impl Number for i32 {}
+impl Number for f64 {}

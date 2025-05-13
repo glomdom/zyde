@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
-pub enum Instruction<T: Copy> {
+pub enum Instruction {
     /// Load an immediate constant into register `dest`
-    LoadImm { dest: usize, value: T },
+    LoadImm { dest: usize, value: f64 },
 
     /// dest = src1 + src2
     Add {
